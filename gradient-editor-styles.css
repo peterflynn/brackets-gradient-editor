@@ -6,6 +6,7 @@
 .inline-gradient-editor .gradient-stripe .stripe-bg {
     width: 300px;
     height: 15px;
+    margin-bottom: 6px;
     /* checkerboard added via .checker-bg class below */
 }
 .inline-gradient-editor .gradient-stripe .stripe-bg .stripe-preview {

@@ -1,27 +1,28 @@
 /*
- * Copyright (c) 2014 Peter Flynn
+ * Copyright (c) 2014, Peter Flynn. All rights reserved.
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
  * 
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- */
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 
-/*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, regexp: true */
+/*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, regexp: true, continue: true */
 /*global define, brackets, $ */
 
 /**
@@ -46,7 +47,13 @@ define(function (require, exports, module) {
     // UI templates
     var inlineEditorTemplate    = require("text!gradient-editor-template.html");
     
-    var STRIPE_WIDTH = 300;  // FIXME: calculate dynamically
+    var _lastOriginNum = 0;
+    
+    function splitUnit(str) {
+        return str.match(/([\d\.\-]+)([^\s]*)/);
+    }
+    
+    var STRIPE_WIDTH = 300;  // TODO: calculate dynamically
     function triangleLeft(stopOffset) {
         return stopOffset / 100 * STRIPE_WIDTH - 5;
     }
@@ -61,30 +68,71 @@ define(function (require, exports, module) {
     }
     
     
+    var cssColorNames = "aliceblue,antiquewhite,aqua,aquamarine,azure,beige,bisque,black,blanchedalmond,blue,blueviolet,brown,burlywood,cadetblue,chartreuse,chocolate,coral,cornflowerblue,cornsilk,crimson,cyan,darkblue,darkcyan,darkgoldenrod,darkgray,darkgreen,darkgrey,darkkhaki,darkmagenta,darkolivegreen,darkorange,darkorchid,darkred,darksalmon,darkseagreen,darkslateblue,darkslategray,darkslategrey,darkturquoise,darkviolet,deeppink,deepskyblue,dimgray,dimgrey,dodgerblue,firebrick,floralwhite,forestgreen,fuchsia,gainsboro,ghostwhite,gold,goldenrod,gray,green,greenyellow,grey,honeydew,hotpink,indianred,indigo,ivory,khaki,lavender,lavenderblush,lawngreen,lemonchiffon,lightblue,lightcoral,lightcyan,lightgoldenrodyellow,lightgray,lightgreen,lightgrey,lightpink,lightsalmon,lightseagreen,lightskyblue,lightslategray,lightslategrey,lightsteelblue,lightyellow,lime,limegreen,linen,magenta,maroon,mediumaquamarine,mediumblue,mediumorchid,mediumpurple,mediumseagreen,mediumslateblue,mediumspringgreen,mediumturquoise,mediumvioletred,midnightblue,mintcream,mistyrose,moccasin,navajowhite,navy,oldlace,olive,olivedrab,orange,orangered,orchid,palegoldenrod,palegreen,paleturquoise,palevioletred,papayawhip,peachpuff,peru,pink,plum,powderblue,purple,red,rosybrown,royalblue,saddlebrown,salmon,sandybrown,seagreen,seashell,sienna,silver,skyblue,slateblue,slategray,slategrey,snow,springgreen,steelblue,tan,teal,thistle,tomato,turquoise,violet,wheat,white,whitesmoke,yellow,yellowgreen";
+    cssColorNames = cssColorNames.split(",").reduce(function (obj, color) { obj[color] = true; return obj; }, {});
+    
     function findGradientNearCursor(editor, pos) {
         var line = editor.document.getLine(pos.line),
             match = line.match(/((-webkit-|-moz-|-ms-|-o-)?linear-gradient)\((.*)\)/); // FIXME: matches too much on lines w/ multiple comma-separated gradients
         
         if (match && match[3]) {
-            // FIXME: doesn't work if comma-separated rgba/hsv/etc. used - need to do a regexp-match loop?
-            var params = match[3].split(/,\s*/);
+            // Extract array of color stops (color + offset pairs)
+            var colors = [], offsets = [], direction;
+            var paramsStr = match[3];
+            var gradientPartRE = /((?:rgba?|hsla?)\s*\([^\)]+\)|#?[^\s,]+)(?:\s+(\S+))?\s*(,|$)/g,
+                stopMatch;
+            while ((stopMatch = gradientPartRE.exec(paramsStr)) !== null) {
+                // The regex above will collect the optional direction expression as the first color stop - check for that too
+                if (direction === undefined) {
+                    var colorMatch = stopMatch[1];
+                    if (colorMatch[0] !== "#" && colorMatch.indexOf("rgb") !== 0 && colorMatch.indexOf("hsl") !== 0 && !cssColorNames[colorMatch]) {
+                        direction = colorMatch;
+                        if (stopMatch[2]) {  // a direction like "to left" will land in both regex slots
+                            direction += " " + stopMatch[2];
+                        }
+                        continue;
+                    } else {
+                        direction = "";
+                    }
+                }
+                colors.push(stopMatch[1]);
+                offsets.push(stopMatch[2]); // might be missing - offset is optional; inferred value filled in below
+            }
             
-            var colorStops = params.slice(1);
-            var colors = [], offsets = [];
-            
-            colorStops.forEach(function (stop) {
-                var halves = stop.match(/(.+)\s+(\S+)/);
-                colors.push(halves[1]);
-                offsets.push(halves[2]); // TODO: this is optional
-            });
+            // Fix up missing color stop offsets
+            if (!offsets[0]) {
+                offsets[0] = "0%";
+            }
+            if (!offsets[offsets.length - 1]) {
+                offsets[offsets.length - 1] = "100%";
+            }
+            // "for each run of adjacent color-stops without positions, set their positions so that they are evenly spaced between the preceding and following color-stops with positions"
+            var i;
+            var lastWithPos = -1;
+            for (i = 0; i < offsets.length; i++) {
+                if (offsets[i]) {
+                    // End of a run with no pos? Distribute the rest evenly between them
+                    if (lastWithPos !== i - 1) {
+                        // numStops is 1 larger than the number of stops missing an offset - the number that the increment is derived from
+                        // (e.g. if 2 stops are missing a number, we're incremening in 1/3s of the range between the two specified stops)
+                        var numStops = i - lastWithPos,
+                            range = parseOffset(offsets[i]) - parseOffset(offsets[lastWithPos]);
+                        var k;
+                        for (k = lastWithPos + 1; k < i; k++) {
+                            var offset = (k - lastWithPos) / numStops * range;
+                            offsets[k] = offset + "%";
+                        }
+                    }
+                    lastWithPos = i;
+                }
+            }
             
             var gradInfo = {
                 origPos: {line: pos.line, ch: match.index},
                 origText: match[0],
                 prefix: match[1],
                 // direction is t/l/r/b (with optional "to\s+") prefix, or number with mandatory deg/grad/rad/turn suffix (w/ no space)
-                // TODO: direction arg is actually optional
-                direction: params[0],
+                direction: direction, //paramsStr.split(/,\s*/)[0],
                 colors: colors,
                 offsets: offsets
             };
@@ -98,6 +146,7 @@ define(function (require, exports, module) {
         
         this.gradInfo = gradInfo;
         this.lastPos = gradInfo.origPos;
+        this.origin = "+InlineGradientEditor" + (_lastOriginNum++);
         
         this.$htmlContent.addClass("inline-gradient-editor");
         $(inlineEditorTemplate).appendTo(this.$htmlContent);
@@ -135,7 +184,7 @@ define(function (require, exports, module) {
         this._adjustHeight();
     };
     GradientInlineEditor.prototype._adjustHeight = function () {
-        var inlineWidgetHeight = 260; // FIXME: calculate dynamically
+        var inlineWidgetHeight = 260; // TODO: calculate dynamically
         this.hostEditor.setInlineWidgetHeight(this, inlineWidgetHeight);
     };
     
@@ -155,17 +204,54 @@ define(function (require, exports, module) {
             return color + " " + gradInfo.offsets[i];
         }).join(", ");
         
-        var stripeGradient   = "-webkit-linear-gradient(left," + stops + ")",
-            previewGraidient = "-webkit-linear-gradient(" + gradInfo.direction + "," + stops + ")",
-            fullGradient     = gradInfo.prefix + "(" + gradInfo.direction + ", " + stops + ")";
+        function toModernDir(dir, gradPrefix) {
+            // Modern:
+            //  dir = angle | "to " + top/bottom/left/right
+            //  "to top" = grad starts at bottom
+            //  angle 0deg = North, higher = CW
+            // Old syntax:
+            //  dir = angle | top/bottom/left/right
+            //  "top" = grad starts at top
+            //  angle 0deg = East, higher = CCW
+            //    (so converting to modern means inverting angle & then rotating 90deg CCW)
+            if (!dir) { return dir; }
+            if (!gradPrefix || gradPrefix[0] !== "-") { return dir; }  // already modern format
+            
+            if (isNaN(parseFloat(dir))) {
+                // Convert angle names from "from" (implicit) style to "to" (explicit)
+                if (dir.indexOf("left") !== -1) {
+                    dir = dir.replace("left", "right");
+                } else {
+                    dir = dir.replace("right", "left");
+                }
+                if (dir.indexOf("top") !== -1) {
+                    dir = dir.replace("top", "bottom");
+                } else {
+                    dir = dir.replace("bottom", "top");
+                }
+                return "to " + dir;
+            } else {
+                // Convert angle numbers from CCW East to CW North
+                var numUnit = splitUnit(dir);
+                return (-parseFloat(numUnit[1]) + 90) + numUnit[2];
+            }
+        }
+        function optional(part) {
+            return part ? part + ", " : "";
+        }
+        
+        var stripeGradient  = "linear-gradient(to right," + stops + ")",                       // grad used in draggable stripe (always left->right)
+            previewGradient = "linear-gradient(" + optional(toModernDir(gradInfo.direction, gradInfo.prefix)) + stops + ")", // grad used in large preview rect (uses modern dir form)
+            fullGradient    = gradInfo.prefix + "(" + optional(gradInfo.direction) + stops + ")";          // grad written out to code (uses code's prefix's dir form)
         
         this.$htmlContent.find(".stripe-preview").css("background", stripeGradient);
-        this.$htmlContent.find(".gradient-preview").css("background", previewGraidient);
+        this.$htmlContent.find(".gradient-preview").css("background", previewGradient);
         
         if (!suppressChange) {
             var gradInCode = findGradientNearCursor(this.hostEditor, this.lastPos);
             this.lastPos = gradInCode.origPos;
-            this.hostEditor.document.replaceRange(fullGradient, this.lastPos, { line: this.lastPos.line, ch: this.lastPos.ch + gradInCode.origText.length });
+            this.hostEditor.document.replaceRange(fullGradient, this.lastPos, { line: this.lastPos.line, ch: this.lastPos.ch + gradInCode.origText.length },
+                                                  this.origin);
         }
     };
     
