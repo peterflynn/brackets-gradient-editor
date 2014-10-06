@@ -1,0 +1,9 @@
+{
+    "name": "pflynn.inline-gradient-editor",
+    "title": "Inline Gradient Editor",
+    "homepage": "https://github.com/peterflynn/brackets-gradient-editor",
+    "author": "Peter Flynn",
+    "version": "1.0.0",
+    "engines": { "brackets": ">=0.36" },
+    "description": "Edit CSS linear gradients visually inline - just use Quick Edit (Ctrl-E)."
+}
