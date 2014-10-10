@@ -1,6 +1,6 @@
 .inline-gradient-editor .gradient-stripe {
     margin-left: 45px;
-    margin-top: 10px;
+    margin-top: 15px;
     position: relative;
 }
 .inline-gradient-editor .gradient-stripe .stripe-bg {
@@ -13,7 +13,7 @@
     width: 300px;
     height: 15px;
     border-radius: 3px;
-    border-bottom: 1px solid #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.12);
     
     /* will be programmatically set to display the gradient, always left to right */
@@ -23,9 +23,18 @@
     background-image: url("color_thumb_back.png");
     background-size: 8px;
 }
+
+.dark .inline-gradient-editor .checker-bg {
+    background-image: url("color_thumb_back_dark.png");
+}
+
 @media all and (-webkit-min-device-pixel-ratio: 2), (min-device-pixel-ratio: 2) {
     .inline-gradient-editor .checker-bg {
         background-image: url("color_thumb_back@2x.png");
+    }
+    
+    .dark .inline-gradient-editor .checker-bg {
+        background-image: url("color_thumb_back_dark@2x.png");
     }
 }
 
@@ -37,7 +46,10 @@
     height: 0px;
     border-style: solid;
     border-width: 0 5.5px 9.5px 5.5px;
-    border-color: transparent transparent black transparent;
+    border-color: transparent transparent #333 transparent;
+}
+.dark .grad-tri {
+    border-color: transparent transparent #ccc transparent;
 }
 .grad-tri.tri-selected {
     border-bottom-color: #6090e0;
@@ -57,16 +69,16 @@
 
 .inline-gradient-editor .preview-bg {
     width: 200px;
-    height: 130px;
+    height: 87px;
     position: absolute;
-    left: 390px;
+    left: 365px;
     top: 15px;
 }
 .inline-gradient-editor .gradient-preview {
     width: 200px;
-    height: 130px;
+    height: 87px;
     border-radius: 3px;
-    border-bottom: 1px solid #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.12);
     
     /* will be programmatically set to display the gradient, following its specified direction */
